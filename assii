@@ -1,0 +1,116 @@
+#!/bin/bash
+
+# This is an interactive script which helps do get Arch up and running.
+
+# welcome message 
+echo "Welcome to the Arch-Linix installation script.
+it will take you through the installation and leaves you with a ready to go system.
+Just follw the menu and watch the magic.
+"
+
+# checking internet connection
+echo "Checking internet connection"
+	ping -c3 8.8.8.8 -q | grep packets
+echo -e "\n"
+
+# installation menu
+echo "1 -> Preparing HDD"
+echo "2 -> Installing Arch"
+echo "3 -> Configure System and GRUB installation"
+echo "4 -> Installing X, GUI, basic functionality (optinal)"
+
+read MENU;
+
+case $MENU in
+	# partitioning, formatting and mounting
+	1) cfdisk
+	   clear
+	   lsblk -lfa
+
+	   read -p "Select your ROOT partiton (e.g. sdxn): " ROOTFS
+	   	mkfs.ext4 /dev/$ROOTFS
+			mount /dev/$ROOTFS /mnt
+	   
+	   read -p "Select your HOME partition: " HOMEFS
+	   	mkfs.ext4 /dev/$HOMEFS
+		mkdir /mnt/home
+			mount /dev/$HOMEFS /mnt/home
+
+
+	   read -p "Select your SWAP partition: " SWAPFS
+	  	mkswap /dev/$SWAPFS
+	        swapon /dev/$SWAPFS
+
+	   clear;;
+
+	# installing the system   
+	2) clear
+	   echo "Choose the mirror nearest to you. The installation will start afterwards"
+	   	sleep 3
+	   vi /etc/pacman.d/mirrorlist
+	   pacstrap -i /mnt base base-devel
+	   genfstab -U -p /mnt >> /mnt/etc/fstab
+	   arch-chroot /mnt
+
+	   clear;;
+
+	# configuring the system
+  	3) clear
+	   
+	   # setting locales
+     	   echo LANG=de_DE.UTF-8 > /etc/locale.conf
+   	   export LANG=de_DE.UTF-8
+	   ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+	   hwclock --systohc --utc	   
+	   
+	   # creatings users
+	   clear
+	   read -p "Enter your hostname: " HOST
+	   	echo $HOST > /etc/hostname
+
+	   # setting root passwd
+	   echo "Enter your root password:"
+	   passwd
+	   
+	   # creating user and password
+	   read -p "Enter your username: " USER
+	   	useradd -m -g users -G wheel,power,storage -s /bin/bash $USER
+		
+		echo "Enter your user password"
+		passwd $USER
+			EDITOR=vi visudo
+			vi /etc/pacman.conf
+			pacman -Syy
+
+	   # installing GRUB
+	   pacman -S bash-completion
+	   pacman -S grub
+	   	grub-install --target=i386-pc --recheck /dev/sda
+		pacman -S os-prober
+	   grub-mkconfig /boot/grub/grub.cfg
+
+	   # enable network
+	   systemctl enable dhcpcd.service
+	   systemctl start dhcpcd.service
+
+	   exit
+
+	   umount -R /mnt
+
+	   echo "Type "reboot" to restart"
+	   clear;;
+	
+	# installing X and any applications needed
+     	4) clear
+           su -
+
+	   pacman -S xorg-server xorg-server-utils xorg-xinit xterm tilda ranger vim i3 tmux cmus finch firefox thunar thuar-volman thunar-archive-plugin sshfs gvfs samba fuseiso nvidia lib32-nvidia-utils git slim
+
+	   systemctl enable slim.service
+	   cp /etc/skel/.xinitrx /home/$USER/.xinitrc
+	   	echo "exec i3" >> /home/$USER/.xinitrc
+	   nvidia-xconfig	   
+
+	   echo "Installation is finished.";;
+
+esac
